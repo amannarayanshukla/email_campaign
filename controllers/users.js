@@ -32,6 +32,12 @@ exports.user_find = (req, res) => {
         // })
 };
 
+exports.user_find_id = (req, res) => {
+    let id = req.body.id;
+
+    return User.find({_id: id}).exec();
+};
+
 exports.user_update = (req, res, data) => {
     let id = req.params.id;
     console.log(data,"DATA")

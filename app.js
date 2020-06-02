@@ -43,6 +43,10 @@ const app = express();
 const client = redis.createClient({host : process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT}); //creates a new client
 const saltRounds = 10;
 
+client.auth(process.env.REDIS_PASSWORD, function (err) {
+    if (err) throw err;
+});
+
 client.on('connect', function() {
     console.log('redis connected');
 });
@@ -444,6 +448,43 @@ app.post("/data/:id",upload,(req, res) => {
     console.log(csvFilePath,"CSV FILE PATH");
     console.log("BUFFER", req.file.buffer);
     return res.json({fileName: csvFilePath})
+});
+
+app.post("/user/dashboard", (req,res) => {
+    let user;
+    userController.user_find_id(req,res)
+        .then(users => {
+            user = users[0];
+            // console.log(users);
+            let data = users[0].campaignEmailIDs;
+            return Promise.all(data.map(item=> {
+                console.log(typeof (item), "ITEM");
+                let url = 'https://api.sendgrid.com/v3/marketing/stats/singlesends/'+item;
+                return axios({
+                    method:'get',
+                    url,
+                    'headers': {
+                        'Authorization': 'Bearer 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'
+                    },
+                    redirect:'follow'
+                })
+            }))
+        })
+        .then((data) => {
+            // console.log(data, "DATA <ANA")
+            // let stats = data;
+            console.log(data, "STATS");
+            let results = []
+            data.map(item => {
+                results.push(item.data);
+            })
+
+            return res.json({data: results})
+        })
+        .catch(err => {
+            console.log(err,"ERROR")
+            return res.status(401).json({message: "error please try again"})
+        })
 });
 
 app.get("/user/unsubscribe/:email/:listid", (req, res) => {
