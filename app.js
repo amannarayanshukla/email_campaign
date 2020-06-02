@@ -29,16 +29,6 @@ let db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
 
-
-// //TODO: Make a schema in MongoDB
-// let users = [{
-//     email : "aman",
-//     password : "$2b$10$wfNcP/QawmqSKIDugkV1iOSpcUhHQpimmO/MKwooqrEvoZunHZH/S"
-// }, {
-//     email : "aryan",
-//     password : "$2b$10$wfNcP/QawmqSKIDugkV1iOSpcUhHQpimmO/MKwooqrEvoZunHZH/S"
-// }];
-
 const app = express();
 const client = redis.createClient({host : process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT}); //creates a new client
 const saltRounds = 10;
@@ -120,43 +110,10 @@ app.post('/verify',authenticateToken,(req,res) => {
     return res.json({'email':req.body.email})
 });
 
-// app.post('/token', (req, res) => {
-//     const refreshToken = req.body.token;
-//     const uuid = req.body.uuid;
-//
-//     if(!refreshToken || !uuid){
-//         return res.json({message : "no refresh token found or uuid found"})
-//     }
-//
-//     client.get(uuid, function(err, reply) {
-//         if(err){
-//             return res.json({message: "uuid not found"})
-//         }
-//         if(!reply){
-//             return res.json({message : "no key found for the uuid"})
-//         }
-//
-//         // verify a token symmetric
-//         if(refreshToken === reply ){
-//             jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, function(err, user) {
-//                 const accessToken = createAccessToken(user.email);
-//                 return res.json({accessToken});
-//             })} else {
-//             return res.json({message :"wrong refresh token mapped"});
-//         }
-//     });
-// });
-
 app.post('/user/create',userController.user_create);
 
 app.post('/user/login', (req, res) => {
 
-    // const user = users.filter(item => {
-    //     return item.email === req.body.email;
-    // });
-    // if(!user || user.length === 0){
-    //     return res.status(401).json({message : "wrong email or password"})
-    // }
     userController.user_find(req,res)
         .then(users => {
             console.log(users);
@@ -184,8 +141,6 @@ app.post('/user/login', (req, res) => {
             console.log(err,"err");
             return res.status(401).json({message:`Wrong email or password`})
         })
-
-
 });
 
 app.post('/user/logout',authenticateToken,(req, res) => {
@@ -201,11 +156,7 @@ app.post('/user/logout',authenticateToken,(req, res) => {
     });
 });
 
-
-
 app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
-
-    // console.log(req.body, "REQUEST BODY");
 
     const body = req.body.data;
 
@@ -216,12 +167,11 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
 
 
     let listID;
-    // let csvFilePath = `./public/${body.contactList}`;
     axios({
         method:`post`,
         url: `https://api.sendgrid.com/v3/marketing/lists`,
         headers: {
-            'Authorization': 'Bearer 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'
+            'Authorization': process.env.SENDGRID_API_KEY
         },
         data: JSON.stringify({
                     "name":`${uniqID}${body.campaignName}`
@@ -252,7 +202,7 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
                 method:`put`,
                 url: `https://api.sendgrid.com/v3/marketing/contacts`,
                 headers: {
-                    'Authorization': 'Bearer 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',
+                    'Authorization': process.env.SENDGRID_API_KEY,
                     'Content-Type': 'application/json'
                 },
                 data: JSON.stringify({
@@ -265,18 +215,13 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
             return jobID = response.data.job_id;
         })
         .then(jobID => {
-        //     //TODO check the status of the job_id
-        // }).then(()=>
-
-            //------
-
             const polling = AsyncPolling(function (end) {
                 console.log(jobID, "JOBID IN POLLING")
                 axios({
                     method:'get',
                     url:`https://api.sendgrid.com/v3/marketing/contacts/imports/${jobID}`,
                     headers: {
-                        'Authorization': 'Bearer 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',
+                        'Authorization': process.env.SENDGRID_API_KEY,
                         'Content-Type': 'application/json'
                     }
                 })
@@ -298,7 +243,7 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
                 //     // Then send it to the listeners:
                 //     end(null, result);
                 // });
-            }, 10000);
+            }, 50000);
 
             polling.run();
 
@@ -314,7 +259,7 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
                                 method:'post',
                                 url:'https://api.sendgrid.com/v3/marketing/singlesends',
                                 headers: {
-                                    'Authorization': 'Bearer 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',
+                                    'Authorization': process.env.SENDGRID_API_KEY,
                                     'Content-Type': 'application/json'
                                 },
                                 data:  JSON.stringify({
@@ -329,7 +274,6 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
                                         "plain_content": item.plain_content,
                                         "generate_plain_content": true,
                                         "sender_id": item.sender_id,
-                                        // "suppression_group_id": 91273,
                                         "custom_unsubscribe_url": "http://localhost:9999/"
                                     }
                                 })
@@ -344,7 +288,7 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
                                     method:'put',
                                     url:`https://api.sendgrid.com/v3/marketing/campaigns/${response.data.id}/schedule`,
                                     'headers': {
-                                        'Authorization': 'Bearer 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',
+                                        'Authorization': process.env.SENDGRID_API_KEY,
                                         'Content-Type': 'application/json'
                                     },
                                     data: JSON.stringify({
@@ -359,22 +303,15 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
                         .catch(err => {
                             console.log(err, "ERROR")
                         })
-
                 }
             });
-
-
-
-
-
-            //-----------
            tags.map(item => {
                if (item !== 'first_name' || item !== 'last_name' || item !== 'email'){
                    return axios({
                        method: 'post',
                        url:`https://api.sendgrid.com/v3/marketing/field_definitions`,
                        headers: {
-                           'Authorization': 'Bearer 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',
+                           'Authorization': process.env.SENDGRID_API_KEY,
                            'Content-Type': 'application/json'
                        },
                        data: JSON.stringify({
@@ -387,54 +324,7 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
         })
         .then(response => {
             return res.json({message : "In progress"})
-        //     return Promise.all(email.map(item => {
-        //         return axios({
-        //             method:'post',
-        //             url:'https://api.sendgrid.com/v3/marketing/singlesends',
-        //             headers: {
-        //                 'Authorization': 'Bearer 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',
-        //                 'Content-Type': 'application/json'
-        //             },
-        //             data:  JSON.stringify({
-        //                 "name": campaignName,
-        //                 "send_at": new Date(item.time).toISOString(),
-        //                 "send_to": {
-        //                     "list_ids": [listID]
-        //                 },
-        //                 "email_config": {
-        //                     "subject": item.subject,
-        //                     "html_content": `${item.html_content} \n <a href = "http://localhost:9999/user/unsubscribe/{{email}}/${listID}"> Unsubscribe </a>`,
-        //                     "plain_content": item.plain_content,
-        //                     "generate_plain_content": true,
-        //                     "sender_id": item.sender_id,
-        //                     "suppression_group_id": 91273,
-        //                     // "custom_unsubscribe_url": "http://localhost:9999/"
-        //                 }
-        //             })
-        //         })
-        //     }))
         })
-        // .then(responses => {
-        //     console.log(responses,"RESPONSES");
-        //     return Promise.all(responses.map(response => {
-        //         // TODO: uncomment
-        //         userController.user_update(req,res, {emailID : response.data.id ,campaignName, listID });
-        //         return axios({
-        //             method:'put',
-        //             url:`https://api.sendgrid.com/v3/marketing/campaigns/${response.data.id}/schedule`,
-        //             'headers': {
-        //                 'Authorization': 'Bearer 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',
-        //                 'Content-Type': 'application/json'
-        //             },
-        //             data: JSON.stringify({
-        //                 "send_at": new Date(response.data.send_at).toISOString()
-        //             })
-        //         })
-        //     }))
-        // })
-        // .then(response => {
-        //     return res.json({message: "done"})
-        // })
         .catch(err => {
             console.log(err, "ERROR")
         })
@@ -442,11 +332,7 @@ app.post("/create-campaign/:id",authenticateToken ,(req,res) => {
 
 
 app.post("/data/:id",upload,(req, res) => {
-    console.log(req.file.originalname);
-    // const path = `${}${}`;
     csvFilePath = `./public/${uniqID}${req.file.originalname}`;
-    console.log(csvFilePath,"CSV FILE PATH");
-    console.log("BUFFER", req.file.buffer);
     return res.json({fileName: csvFilePath})
 });
 
@@ -455,7 +341,6 @@ app.post("/user/dashboard", (req,res) => {
     userController.user_find_id(req,res)
         .then(users => {
             user = users[0];
-            // console.log(users);
             let data = users[0].campaignEmailIDs;
             return Promise.all(data.map(item=> {
                 console.log(typeof (item), "ITEM");
@@ -464,31 +349,25 @@ app.post("/user/dashboard", (req,res) => {
                     method:'get',
                     url,
                     'headers': {
-                        'Authorization': 'Bearer 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'
+                        'Authorization': process.env.SENDGRID_API_KEY
                     },
                     redirect:'follow'
                 })
             }))
         })
         .then((data) => {
-            // console.log(data, "DATA <ANA")
-            // let stats = data;
-            console.log(data, "STATS");
             let results = []
             data.map(item => {
                 results.push(item.data);
-            })
-
+            });
             return res.json({data: results})
         })
         .catch(err => {
-            console.log(err,"ERROR")
             return res.status(401).json({message: "error please try again"})
         })
 });
 
 app.get("/user/unsubscribe/:email/:listid", (req, res) => {
-    console.log(req.params, 'REQ');
 
     let email = req.params.email;
     let listID = req.params.listid;
@@ -497,7 +376,7 @@ app.get("/user/unsubscribe/:email/:listid", (req, res) => {
         method:`get`,
         url: `https://api.sendgrid.com/v3/marketing/contacts`,
         headers: {
-            'Authorization': 'Bearer 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'
+            'Authorization': process.env.SENDGRID_API_KEY
         }
     })
         .then(response => {
@@ -515,7 +394,7 @@ app.get("/user/unsubscribe/:email/:listid", (req, res) => {
                         method:`delete`,
                         url: `https://api.sendgrid.com/v3/marketing/contacts?ids=${item.id}`,
                         headers: {
-                            'Authorization': 'Bearer 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'
+                            'Authorization': process.env.SENDGRID_API_KEY
                         }
                     })
                 })
@@ -525,10 +404,9 @@ app.get("/user/unsubscribe/:email/:listid", (req, res) => {
             return res.json({message : "unsubscribed"});
         })
         .catch(err => {
-            console.log(err)
             return res.status(401).json({message : "please try again later"})
         });
-})
+});
 
 app.listen(9999, () => {
     console.log('Started on port 9999');
